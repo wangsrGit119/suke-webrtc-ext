@@ -1,0 +1,4 @@
+aiortc==1.4.0
+fastapi==0.92.0
+pydantic==1.10.2
+uvicorn==0.20.0

@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>SUKE-RTE-ONLINE</title>
+    <link href="./static/favicon.ico" rel="shortcut icon">
+    <script src="./static/js/jquery-3.6.0.min.js" ></script>
+
+    <!-- cdn引入ElementUI样式 -->
+    <link rel="stylesheet" href="./static/element-ui/index.css">
+
+    <style type="text/css">
+        body{
+            margin: 0;
+            height: 99vh;
+            background-color: #CDDCDC; background-image: radial-gradient(at 50% 100%, rgba(255,255,255,0.50) 0%, rgba(0,0,0,0.50) 100%), linear-gradient(to bottom, rgba(255,255,255,0.25) 0%, rgba(0,0,0,0.25) 100%); background-blend-mode: screen, overlay;
+            font-size: 12px;
+            padding: 0;
+            width:100%;
+        }
+        .el-container{
+            height: 99vh;
+        }
+        .el-header, .el-footer {
+            color: #333;
+            text-align: center;
+            line-height: 60px;
+            font-size: 18px;
+            background-image: linear-gradient(to top, #dad4ec 0%, #dad4ec 1%, #f3e7e9 100%);
+          }
+          .el-footer {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+          }
+          
+          
+          
+          .el-main {
+            color: #333;
+            text-align: center;
+          }
+
+          
+          .el-select{
+          }
+
+    </style>
+
+
+</head>
+<body>
+<div id="app" >
+    <el-container>
+      <el-header>
+          WebRTC 服务端媒体处理
+      </el-header>
+      <el-container>
+        <el-main>
+            <div>
+                <video id="localmeidastream" controls width="600" height="400" autoplay></video>
+            </div>
+        </el-main>
+        <el-footer>
+            <el-select popper-class="s-eleselect" size="mini"  v-model="fileName" @change="playerVideo" placeholder="选择播放视频">
+            <el-option
+              v-for="item in fileList"
+              :key="item"
+              :label="item"
+              :value="item">
+            </el-option>
+          </el-select>
+            <el-button type="warning" size="mini" @click="playCamera">摄像头</el-button>
+        </el-footer>
+      </el-container>
+    </el-container>
+</div>
+<!--cdn引入ElementUI组件必须先引入Vue-->
+<script src="./static/vue/vue.js"></script>
+<!-- cdn引入ElementUI组件库 -->
+<script src="./static/element-ui/index.js"></script>
+<script>
+navigator.getUserMedia = navigator.getUserMedia ||
+    navigator.webkitGetUserMedia ||
+    navigator.mozGetUserMedia;
+var PeerConnection = window.RTCPeerConnection ||
+    window.mozRTCPeerConnection ||
+    window.webkitRTCPeerConnection;
+var pc,channel;
+function handleError(error) {
+    console.log('navigator.MediaDevices.getUserMedia error: ', error.message, error.name);
+}
+var config = {
+    sdpSemantics: 'unified-plan'
+};
+
+config.iceServers = [{urls: ['stun:stun.l.google.com:19302']}];
+var app = new Vue({
+    el: '#app',
+    components: {
+        
+    },
+    data() {
+        return {
+            
+            timer:null,
+            fileName:null,
+            fileList:[],
+        }
+    },
+    created: function (){
+        const that = this
+        this.getAllFiles()
+        
+        
+    },
+    computed: {
+        
+        
+    },
+    mounted(){
+        this.$notify({
+          title: '温馨提示',
+          type:"warning",
+          message: '选择下拉框选取对应视频即可点播',
+          duration: 0
+        });
+        this.$notify({
+          title: '温馨提示',
+          type:"warning",
+          message: '点击摄像头可将画面传输到服务端',
+          duration: 0,
+          position: 'bottom-right'
+        });
+    },
+    methods : {
+        clearMedia(){
+            let video = document.getElementById("localmeidastream")
+            let stream = video.srcObject
+            if(stream){
+                stream.getTracks().forEach(e => {
+                    stream.removeTrack(e)
+                })
+            }
+        },
+        getAllFiles(){
+            const that = this
+            $.ajax({
+                    async: false,
+                    url: '/getAllFiles',
+                    type: 'GET',
+                    contentType: 'application/json; charset=UTF-8',
+                    success: function (res) {
+                        console.log(res)
+                        that.fileList = res.data
+                    },
+                    error: function (err) {
+                        console.error(err)
+                    }
+                });
+        },
+        setDomVideoTrick(domId,trick){
+            let video = document.getElementById(domId)
+            let stream = video.srcObject
+            if(stream){
+                stream.addTrack(trick)
+            }else {
+                stream = new MediaStream()
+                stream.addTrack(trick)
+                video.srcObject = stream
+                // video.controls = false;
+                video.autoplay = true;
+                video.muted = true
+                video.setAttribute('playsinline','')
+            }
+            video.setAttribute('playsinline','')
+        },
+        async getLocalUserMedia(){
+            const constraints = {
+                audio: true,
+                video:true
+            };
+            if (window.stream) {
+                window.stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+            }
+            return await navigator.mediaDevices.getUserMedia(constraints).catch(handleError)
+        },
+        async playerVideo(){
+            this.clearMedia()
+            let that = this
+            if(!that.fileName){
+                    return;    
+            }
+            pc = await new PeerConnection();
+            // sendonly / recvonly/sendrecv
+            pc.addTransceiver("audio", {direction: "recvonly"});
+            pc.addTransceiver("video", {direction: "recvonly"});
+
+            await pc.setLocalDescription(await pc.createOffer())
+            
+            
+            
+            pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                // console.log("ICE 候选信息",event.candidate)
+              } else {
+                /* 在此次协商中，没有更多的候选了 */
+                console.log("在此次协商中，没有更多的候选了")
+              }
+            }
+
+            pc.onicegatheringstatechange = async ev => {
+              let connection = ev.target;
+              console.log(connection.iceGatheringState)
+              switch(connection.iceGatheringState) {
+                case "gathering":
+                  /* 候选人收集已经开始 */
+                  break;
+                case "complete":
+                  /* 候选人收集完成 */
+                    var offer = pc.localDescription;
+                    let sdp = offer.sdp
+                    let type = offer.type
+
+                    let result = await this.playVideosSdp(sdp,type,that.fileName)
+                    await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: result['sdp']}))
+                    break;
+              }
+            }
+
+
+            pc.ontrack = (evt) => {
+                console.log("远程媒体",evt.track)
+                that.setDomVideoTrick("localmeidastream",evt.track)
+            }
+            
+            pc.ondatachannel = function(ev) {
+              console.log('remote datachannel created');
+              ev.channel.onopen = function() {
+                    console.log('datachannel opened ');
+              };
+              ev.channel.onmessage = function(data) {
+                    console.log('datachannel msg',data.data);
+              };
+              ev.channel.onclose = function() {
+                    console.log('datachannel closed');
+              };
+            }
+
+
+            
+        },
+        playVideosSdp(sdp,type,fileName){
+            return new Promise((resolve,reject) => {
+                $.ajax({
+                    async: false,
+                    url: '/playVideosSdp',
+                    type: 'POST',
+                    data:JSON.stringify({
+                        "sdp":sdp,
+                        "stype":type,
+                        "fileName":fileName
+                    }),
+                    contentType: 'application/json; charset=UTF-8',
+                    success: function (res) {
+                        if(res.code === 200){
+                            resolve(res.data)
+                        }else{
+                            reject("服务异常+"+res)
+                        }
+                    },
+                    error: function (err) {
+                        console.error(err)
+                        reject(err)
+                    }
+                });
+            })
+            
+        },
+        async playCamera(){
+            this.clearMedia()
+            let that = this
+            let stream = await this.getLocalUserMedia()
+            pc = await new PeerConnection();
+            // sendonly / recvonly/sendrecv
+            pc.addTransceiver("audio", {direction: "sendrecv"});
+            pc.addTransceiver("video", {direction: "sendrecv"});
+
+            await pc.setLocalDescription(await pc.createOffer())
+
+            stream.getTracks().forEach(e => {
+                pc.addTrack(e)
+            })
+            
+            
+            
+            pc.onicecandidate = (event) => {
+              if (event.candidate) {
+                // console.log("ICE 候选信息",event.candidate)
+              } else {
+                /* 在此次协商中，没有更多的候选了 */
+                console.log("在此次协商中，没有更多的候选了")
+              }
+            }
+
+            pc.onicegatheringstatechange = async ev => {
+              let connection = ev.target;
+              console.log(connection.iceGatheringState)
+              switch(connection.iceGatheringState) {
+                case "gathering":
+                  /* 候选人收集已经开始 */
+                  break;
+                case "complete":
+                  /* 候选人收集完成 */
+                    var offer = pc.localDescription;
+                    let sdp = offer.sdp
+                    // console.log(sdp)
+                    let result = await this.playCameraSdp(sdp)
+                    await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: result['sdp']}))
+                    channel = await pc.createDataChannel("chat");
+                    channel.onopen = function() {
+                        console.log("client channel created")
+                    };
+                    break;
+              }
+            }
+
+            pc.ontrack = (evt) => {
+                console.log("远程媒体",evt.track)
+                that.setDomVideoTrick("localmeidastream",evt.track)
+            }
+            
+            pc.ondatachannel = function(ev) {
+              console.log('remote datachannel created');
+              ev.channel.onopen = function() {
+                    console.log('datachannel opened ');
+              };
+              ev.channel.onmessage = function(data) {
+                    console.log('datachannel msg',data.data);
+              };
+              ev.channel.onclose = function() {
+                    console.log('datachannel closed');
+              };
+            }
+            
+        },
+        playCameraSdp(sdp){
+            return new Promise((resolve,reject) => {
+                $.ajax({
+                    async: false,
+                    url: '/playCameraSdp',
+                    type: 'POST',
+                    data:JSON.stringify({
+                        "sdp":sdp,
+                    }),
+                    contentType: 'application/json; charset=UTF-8',
+                    success: function (res) {
+                        if(res.code === 200){
+                            resolve(res.data)
+                        }else{
+                            reject("服务异常+"+res)
+                        }
+                    },
+                    error: function (err) {
+                        console.error(err)
+                        reject(err)
+                    }
+                });
+            })
+            
+        },
+        
+        dateFormat(date) {
+            let fmt = 'YYYY-mm-dd HH:MM:SS'
+            let ret;
+            date = new Date(date)
+            const opt = {
+                "Y+": date.getFullYear().toString(),        // 年
+                "m+": (date.getMonth() + 1).toString(),     // 月
+                "d+": date.getDate().toString(),            // 日
+                "H+": date.getHours().toString(),           // 时
+                "M+": date.getMinutes().toString(),         // 分
+                "S+": date.getSeconds().toString()          // 秒
+            };
+            for (let k in opt) {
+                ret = new RegExp("(" + k + ")").exec(fmt);
+                if (ret) {
+                    fmt = fmt.replace(ret[1], (ret[1].length == 1) ? (opt[k]) : (opt[k].padStart(ret[1].length, "0")))
+                };
+            };
+            return fmt;
+        }
+    },
+})
+</script>
+</body>
+</html>

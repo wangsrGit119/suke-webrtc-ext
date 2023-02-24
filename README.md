@@ -1,6 +1,9 @@
-<<<<<<< HEAD
 
-
+# suke-webrtc-ext
+python等客户端和web端通过WebRTC交互
+<div>
+<img src="./dist/GIF-1677224665612.gif" height="350" width="6000" />
+</div>
 ### 依赖导出
 
 > pip install pipreqs -i https://pypi.douban.com/simple
@@ -14,6 +17,5 @@
 
 >  uvicorn main:app --reload --port 18080 --host 0.0.0.0
 =======
-# suke-webrtc-ext
-python等客户端和web端通过WebRTC交互
->>>>>>> cea3153ae14ca06fc892d815b0fb8e917b1ec99d
+
+

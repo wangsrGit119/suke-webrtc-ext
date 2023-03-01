@@ -72,6 +72,7 @@
             </el-option>
           </el-select>
             <el-button type="warning" size="mini" @click="playCamera">摄像头</el-button>
+            <el-input placeholder="请输入内容" style="width: 150px;" size="mini" v-model="inputMsg" @input="inputMsgToRemote" clearable> </el-input>
         </el-footer>
       </el-container>
     </el-container>
@@ -107,6 +108,7 @@ var app = new Vue({
             timer:null,
             fileName:null,
             fileList:[],
+            inputMsg:null,
         }
     },
     created: function (){
@@ -129,7 +131,7 @@ var app = new Vue({
         this.$notify({
           title: '温馨提示',
           type:"warning",
-          message: '点击摄像头可将画面传输到服务端',
+          message: '点击摄像头可将画面传输到服务端(同时开启DataChannel,输入框发送即可响应)',
           duration: 0,
           position: 'bottom-right'
         });
@@ -198,9 +200,19 @@ var app = new Vue({
             // sendonly / recvonly/sendrecv
             pc.addTransceiver("audio", {direction: "recvonly"});
             pc.addTransceiver("video", {direction: "recvonly"});
+            channel = await pc.createDataChannel("chat");
+            channel.onopen = function() {
+                console.log("客户端通道创建")
+            };
+            channel.onclose = function() {
+                console.log("客户端通道关闭")
+            };
+            channel.onmessage = function(evt) {
+                console.log("来自对端消息" ,evt.data)
+            };
+           
 
             await pc.setLocalDescription(await pc.createOffer())
-            
             
             
             pc.onicecandidate = (event) => {
@@ -224,7 +236,6 @@ var app = new Vue({
                     var offer = pc.localDescription;
                     let sdp = offer.sdp
                     let type = offer.type
-
                     let result = await this.playVideosSdp(sdp,type,that.fileName)
                     await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: result['sdp']}))
                     break;
@@ -238,19 +249,17 @@ var app = new Vue({
             }
             
             pc.ondatachannel = function(ev) {
-              console.log('remote datachannel created');
+              
               ev.channel.onopen = function() {
-                    console.log('datachannel opened ');
+                    console.log('服务端消息通道打开');
               };
               ev.channel.onmessage = function(data) {
-                    console.log('datachannel msg',data.data);
+                    console.log('服务端消息',data.data);
               };
               ev.channel.onclose = function() {
-                    console.log('datachannel closed');
+                    console.log('服务端消息通道关闭');
               };
             }
-
-
             
         },
         playVideosSdp(sdp,type,fileName){
@@ -288,6 +297,17 @@ var app = new Vue({
             // sendonly / recvonly/sendrecv
             pc.addTransceiver("audio", {direction: "sendrecv"});
             pc.addTransceiver("video", {direction: "sendrecv"});
+            channel = await pc.createDataChannel("chat");
+            channel.onopen = function() {
+                console.log("客户端通道创建")
+            };
+            channel.onclose = function() {
+                console.log("客户端通道关闭")
+            };
+            channel.onmessage = function(evt) {
+                console.log("来自对端消息" ,evt.data)
+            };
+
 
             await pc.setLocalDescription(await pc.createOffer())
 
@@ -320,29 +340,24 @@ var app = new Vue({
                     // console.log(sdp)
                     let result = await this.playCameraSdp(sdp)
                     await pc.setRemoteDescription(new RTCSessionDescription({type: 'answer', sdp: result['sdp']}))
-                    channel = await pc.createDataChannel("chat");
-                    channel.onopen = function() {
-                        console.log("client channel created")
-                    };
                     break;
               }
             }
 
             pc.ontrack = (evt) => {
-                console.log("远程媒体",evt.track)
+                // console.log("远程媒体",evt.track)
                 that.setDomVideoTrick("localmeidastream",evt.track)
             }
             
             pc.ondatachannel = function(ev) {
-              console.log('remote datachannel created');
               ev.channel.onopen = function() {
-                    console.log('datachannel opened ');
+                   console.log('服务端消息通道打开');
               };
               ev.channel.onmessage = function(data) {
-                    console.log('datachannel msg',data.data);
+                    console.log('服务端消息',data.data);
               };
               ev.channel.onclose = function() {
-                    console.log('datachannel closed');
+                    console.log('服务端消息通道关闭');
               };
             }
             
@@ -392,6 +407,11 @@ var app = new Vue({
                 };
             };
             return fmt;
+        },
+        inputMsgToRemote(e){
+            if(channel){
+                channel.send(e)
+            }
         }
     },
 })

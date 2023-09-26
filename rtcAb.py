@@ -12,6 +12,10 @@ import logging
 import cv2
 from av import VideoFrame
 
+from yolocase import image_predict
+
+
+
 logging.basicConfig(level=logging.INFO)
 
 relay = MediaRelay()
@@ -89,8 +93,23 @@ class VideoTransformTrack(MediaStreamTrack):
             new_frame.time_base = frame.time_base
             # new_frame.time_base += 1.0 / self.fps  # Update time_base based on custom fps
             return new_frame
+        elif self.transform == "airec":
+            # rotate image
+            img = frame.to_ndarray(format="bgr24")
+            results = image_predict(img)
+            lastimg = results[0].cpu().numpy()
+            new_frame = VideoFrame.from_ndarray(lastimg, format="bgr24")
+            new_frame.pts = frame.pts
+            new_frame.time_base = frame.time_base
+            # new_frame.time_base += 1.0 / self.fps  # Update time_base based on custom fps
+            return new_frame
         else:
             return frame
+
+
+
+
+
 
 
 async def on_ice_candidate(candidate:RTCIceCandidate):
@@ -157,7 +176,7 @@ async def receiveOfferSdpPlayVideo(sdp,fileName):
 	player = MediaPlayer(os.path.join(ROOT, "./media/"+fileName))
 	audio_sender = pc.addTrack(player.audio)
 	# video_sender = pc.addTrack(player.video)
-	video_sender = pc.addTrack(VideoTransformTrack(relay.subscribe(player.video),transform="cartoon"))
+	video_sender = pc.addTrack(VideoTransformTrack(relay.subscribe(player.video),transform="airec"))
 	 
 	# remote desc
 	await pc.setRemoteDescription(offer)

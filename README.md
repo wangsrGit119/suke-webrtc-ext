@@ -1,6 +1,8 @@
 
 # suke-webrtc-ext
-python等客户端和web端通过WebRTC交互
+
+WebRTC  多媒体处理
+
 <div>
 <img src="./dist/GIF-1677224665612.gif" height="350" width="600" />
 </div>
@@ -22,6 +24,6 @@ python等客户端和web端通过WebRTC交互
 
 ### 额外依赖
 
-```
+```python
  pip install opencv-python
 ```

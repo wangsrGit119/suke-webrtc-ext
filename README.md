@@ -20,3 +20,8 @@ python等客户端和web端通过WebRTC交互
 
 
 
+### 额外依赖
+
+```
+ pip install opencv-python
+```

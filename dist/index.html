@@ -73,6 +73,7 @@
           </el-select>
             <el-button type="warning" size="mini" @click="playCamera">摄像头</el-button>
             <el-input placeholder="请输入内容" style="width: 150px;" size="mini" v-model="inputMsg" @input="inputMsgToRemote" clearable> </el-input>
+            <el-button type="success" size="mini" @click="startStats">宽带统计</el-button>
         </el-footer>
       </el-container>
     </el-container>
@@ -109,6 +110,11 @@ var app = new Vue({
             fileName:null,
             fileList:[],
             inputMsg:null,
+            pc:null,
+            timer:null,
+            lastSend:null,
+            lastReceived:null
+
         }
     },
     created: function (){
@@ -197,6 +203,8 @@ var app = new Vue({
                     return;    
             }
             pc = await new PeerConnection();
+            this.pc = pc
+
             // sendonly / recvonly/sendrecv
             pc.addTransceiver("audio", {direction: "recvonly"});
             pc.addTransceiver("video", {direction: "recvonly"});
@@ -262,6 +270,76 @@ var app = new Vue({
             }
             
         },
+        startStats(){
+            if(this.pc){
+                this.statsBandwidth(this.pc)
+            }else{
+                console.log("oh no no no ahhhh!")
+            }
+
+        },
+        statsBandwidth(pc) {
+            const that = this
+            if (!pc) {
+                return
+            }
+            if (this.timer) {
+                clearInterval(this.timer)
+            }
+
+            this.timer = setInterval(async () => {
+                that.calculateReceiverBitrate(pc)
+            }, 3000)
+
+        },
+        calculateReceiverBitrate(pc) {
+            const that = this
+
+
+            const receiver = this.pc.getReceivers().find(
+              receiver => receiver.track.kind === 'video'
+            );
+            // const sender = this.pc.getSenders().find(
+            //   sender => sender.track.kind === 'video'
+            // );
+            console.log("current receiver params == >",receiver.track.getSettings())
+             // console.log("current sender params == >",sender.track.getSettings())
+
+            pc.getStats().then((res) => {
+                res.forEach(report => {
+                    let bytes;
+                    let headerBytes;
+                    let packets;
+                    const now = report.timestamp;
+                    if (report.type === 'outbound-rtp' && report.kind === "video") {
+
+                        bytes = report.bytesSent;
+                        if (that.lastSend && that.lastSend.has(report.id)) {
+                            const bitrate = 8 * (bytes - that.lastSend.get(report.id)
+                                    .bytesSent) /
+                                (now - that.lastSend.get(report.id).timestamp);
+
+                            console.log(`当前出口bitrate为：${bitrate.toFixed(3)} kbps`);
+                        }
+                        that.lastSend = res
+                    }
+                    if (report.type === 'inbound-rtp' && report.kind === "video") {
+
+                        bytes = report.bytesReceived;
+                        if (that.lastReceived && that.lastReceived.has(report.id)) {
+                            const bitrate = 8 * (bytes - that.lastReceived.get(report.id)
+                                    .bytesReceived) /
+                                (now - that.lastReceived.get(report.id).timestamp);
+
+                            console.log(`当前入口bitrate为：${bitrate.toFixed(3)} kbps`);
+                        }
+                        that.lastReceived = res
+                    }
+
+                });
+
+            });
+        },
         playVideosSdp(sdp,type,fileName){
             return new Promise((resolve,reject) => {
                 $.ajax({
@@ -294,6 +372,7 @@ var app = new Vue({
             let that = this
             let stream = await this.getLocalUserMedia()
             pc = await new PeerConnection();
+            this.pc = pc
             // sendonly / recvonly/sendrecv
             pc.addTransceiver("audio", {direction: "sendrecv"});
             pc.addTransceiver("video", {direction: "sendrecv"});
